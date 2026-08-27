@@ -12,3 +12,8 @@
 - [x] Add server-side unit tests for webhook verification, risk holding, memory separation, and approval dispatch safeguards.
 - [x] Validate the completed service locally and document the required production credential and Telegram setup steps.
 - [x] Register and verify the Telegram webhook for https://kelvinbot-cxsk7qzu.manus.space/api/telegram/webhook.
+- [x] Classify enquiries, tasks, approvals, and decisions as Kelvin-approval-required while preserving auto-replies for routine messages.
+- [x] Send and persist a concise pending acknowledgement to users whenever their enquiry or decision request is waiting for Kelvin.
+- [x] Ensure Kelvin’s approved or edited response is sent as the final follow-up to the original user request.
+- [x] Add unit tests and update the operator runbook for the enquiry-hold workflow.
+- [x] Enable low-risk automatic replies in the live bot settings while retaining mandatory approval holds for enquiries, tasks, approvals, decisions, uncertainty, and high-risk content.

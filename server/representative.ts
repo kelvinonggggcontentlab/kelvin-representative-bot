@@ -42,17 +42,28 @@ const highRiskRules = [
 
 const uncertainTerms = ["where are you", "when are you coming", "are you free", "can you promise", "you said", "what do you feel", "你在哪里", "你几点来", "你有空吗", "你答应", "你怎么想"];
 
+const approvalIntentRules = [
+  { category: "ENQUIRY", terms: ["?", "？", "how much", "price", "quotation", "quote", "can you", "could you", "may i", "boleh", "berapa", "多少钱", "可以吗", "请问", "什么", "怎么", "几时", "哪里"] },
+  { category: "TASK_REQUEST", terms: ["please send", "please arrange", "please book", "please help", "can you send", "can you arrange", "can you book", "帮我", "安排", "处理", "发给我", "订"] },
+  { category: "APPROVAL_OR_DECISION", terms: ["approve", "approval", "decide", "decision", "confirm", "confirming", "agree", "accept", "批准", "决定", "确认", "同意"] },
+];
+
 export function findDeterministicRiskSignals(message: string) {
   const normalized = message.toLowerCase();
-  const categories = highRiskRules
+  const highRiskCategories = highRiskRules
+    .filter(rule => rule.terms.some(term => normalized.includes(term.toLowerCase())))
+    .map(rule => rule.category);
+  const approvalIntentCategories = approvalIntentRules
     .filter(rule => rule.terms.some(term => normalized.includes(term.toLowerCase())))
     .map(rule => rule.category);
   const uncertainty = uncertainTerms.some(term => normalized.includes(term.toLowerCase()));
 
   return {
-    categories,
+    categories: [...highRiskCategories, ...approvalIntentCategories],
+    highRiskCategories,
+    approvalIntentCategories,
     uncertainty,
-    requiresApproval: categories.length > 0 || uncertainty,
+    requiresApproval: highRiskCategories.length > 0 || approvalIntentCategories.length > 0 || uncertainty,
   };
 }
 
@@ -180,11 +191,13 @@ ${context.overrides.length ? context.overrides.map(override => `- ${override.ins
     return {
       draftText: cleanText(parsed.draftText, "Noted. I need to check the actual situation first."),
       mode: forceHold ? "HIGH_RISK" : validMode(parsed.mode),
-      riskLevel: deterministic.categories.length > 0 ? "HIGH" : (deterministic.uncertainty ? "UNKNOWN" : modelRisk),
+      riskLevel: deterministic.highRiskCategories.length > 0 ? "HIGH" : (deterministic.uncertainty ? "UNKNOWN" : (deterministic.approvalIntentCategories.length > 0 ? "MEDIUM" : modelRisk)),
       riskCategories: categories,
       requiresApproval: forceHold,
-      holdReason: deterministic.categories.length > 0
-        ? `Automatic hold: ${deterministic.categories.join(", ")}.`
+      holdReason: deterministic.highRiskCategories.length > 0
+        ? `Automatic hold: ${deterministic.highRiskCategories.join(", ")}.`
+        : deterministic.approvalIntentCategories.length > 0
+          ? `Approval required: ${deterministic.approvalIntentCategories.join(", ")}.`
         : deterministic.uncertainty
           ? "Automatic hold: current Kelvin state or intent is unknown."
           : cleanText(parsed.holdReason, forceHold ? "Draft requires Kelvin confirmation." : "Low-risk context-aware draft."),

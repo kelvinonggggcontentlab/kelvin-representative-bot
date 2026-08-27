@@ -14,8 +14,19 @@ describe("Kelvin Representative deterministic safety gate", () => {
     expect(result.uncertainty).toBe(true);
   });
 
+  it("routes ordinary enquiries, tasks, and decisions into Kelvin’s approval queue", () => {
+    const enquiry = findDeterministicRiskSignals("Can you send me a quotation for this?");
+    const task = findDeterministicRiskSignals("Please arrange an appointment tomorrow.");
+    const decision = findDeterministicRiskSignals("Can Kelvin confirm whether this is approved?");
+
+    expect(enquiry.requiresApproval).toBe(true);
+    expect(enquiry.approvalIntentCategories).toContain("ENQUIRY");
+    expect(task.approvalIntentCategories).toContain("TASK_REQUEST");
+    expect(decision.approvalIntentCategories).toContain("APPROVAL_OR_DECISION");
+  });
+
   it("does not force a hold for ordinary low-risk logistics", () => {
-    const result = findDeterministicRiskSignals("I reach in 10 minutes, can?");
+    const result = findDeterministicRiskSignals("I will reach in 10 minutes.");
     expect(result.requiresApproval).toBe(false);
     expect(result.categories).toEqual([]);
   });

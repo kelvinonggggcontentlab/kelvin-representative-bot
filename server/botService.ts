@@ -27,6 +27,16 @@ export function shouldHoldReply(decision: ReplyDecision, settings: BotSettings):
   return decision.requiresApproval || !settings.auto_send_low_risk;
 }
 
+export function buildPendingAcknowledgement(decision: ReplyDecision): string {
+  if (decision.riskCategories.includes("TASK_REQUEST")) {
+    return "Noted. Your request has been sent to Kelvin for review. Please give us a bit of time — we’ll update you once there’s a decision.";
+  }
+  if (decision.riskCategories.includes("APPROVAL_OR_DECISION")) {
+    return "Noted. This needs Kelvin’s confirmation first. Please bear with us — we’ll get back to you once there’s an update.";
+  }
+  return "Noted. Your enquiry has been sent to Kelvin for review. Please bear with us — we’ll get back to you once there’s an update.";
+}
+
 async function updateWebhookEvent(updateId: number, values: Record<string, unknown>) {
   await supabaseRequest(`kr_webhook_events?telegram_update_id=eq.${updateId}`, {
     method: "PATCH",
@@ -109,7 +119,7 @@ async function notifyApproval(approval: Approval, decision: ReplyDecision, incom
   }
 }
 
-async function sendReply(input: { conversationId: string; chatId: number; replyToMessageId?: number; text: string }) {
+async function sendReply(input: { conversationId: string; chatId: number; replyToMessageId?: number; text: string; messageKind?: string; deliveryStatus?: string }) {
   const sent = await sendTelegramMessage(input.chatId, input.text, input.replyToMessageId);
   const rows = await supabaseRequest<Array<{ id: string }>>("kr_messages", {
     method: "POST",
@@ -118,11 +128,11 @@ async function sendReply(input: { conversationId: string; chatId: number; replyT
       conversation_id: input.conversationId,
       telegram_message_id: sent.message_id,
       direction: "OUTBOUND",
-      message_kind: "TEXT",
+      message_kind: input.messageKind ?? "TEXT",
       body: input.text,
       raw_payload: sent,
       in_reply_to_telegram_message_id: input.replyToMessageId ?? null,
-      delivery_status: "SENT",
+      delivery_status: input.deliveryStatus ?? "SENT",
       sent_at: new Date().toISOString(),
     }),
   });
@@ -180,6 +190,13 @@ export async function processTelegramUpdate(update: TelegramUpdate) {
     if (shouldHoldReply(decision, settings)) {
       const reason = decision.requiresApproval ? decision.holdReason : "Manual-review mode is active for low-risk drafts.";
       const approval = await createApproval({ conversationId: conversation.id, inboundMessageId: inboundRows[0].id, decision, holdReason: reason });
+      await sendReply({
+        conversationId: conversation.id,
+        chatId: conversation.telegram_chat_id,
+        replyToMessageId: message.message_id,
+        text: buildPendingAcknowledgement(decision),
+        messageKind: "PENDING_ACKNOWLEDGEMENT",
+      });
       await supabaseRequest(`kr_messages?id=eq.${inboundRows[0].id}`, {
         method: "PATCH",
         headers: supabaseHeaders.represent,
@@ -195,6 +212,7 @@ export async function processTelegramUpdate(update: TelegramUpdate) {
       chatId: conversation.telegram_chat_id,
       replyToMessageId: message.message_id,
       text: decision.draftText,
+      messageKind: "AUTO_REPLY",
     });
     await supabaseRequest(`kr_messages?id=eq.${inboundRows[0].id}`, {
       method: "PATCH",
@@ -256,6 +274,7 @@ export async function approveReply(input: { approvalId: string; reviewer: string
       chatId: conversation.telegram_chat_id,
       replyToMessageId: inbound?.telegram_message_id ?? undefined,
       text,
+      messageKind: "APPROVED_FOLLOW_UP",
     });
     await supabaseRequest(`kr_approval_items?id=eq.${input.approvalId}`, {
       method: "PATCH",

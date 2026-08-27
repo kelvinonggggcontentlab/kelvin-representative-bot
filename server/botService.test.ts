@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldHoldReply } from "./botService";
+import { buildPendingAcknowledgement, shouldHoldReply } from "./botService";
 import type { ReplyDecision } from "./representative";
 
 const lowRiskDecision: ReplyDecision = {
@@ -22,5 +22,17 @@ describe("approval dispatch safeguard", () => {
 
   it("only permits automatic delivery for an explicitly low-risk draft in auto-send mode", () => {
     expect(shouldHoldReply(lowRiskDecision, { auto_send_low_risk: true, bot_enabled: true })).toBe(false);
+  });
+
+  it("tells a held task requester that Kelvin will follow up after review", () => {
+    const acknowledgement = buildPendingAcknowledgement({ ...lowRiskDecision, requiresApproval: true, riskLevel: "MEDIUM", riskCategories: ["TASK_REQUEST"] });
+    expect(acknowledgement).toContain("sent to Kelvin for review");
+    expect(acknowledgement).toContain("we’ll update you once there’s a decision");
+  });
+
+  it("uses a neutral pending acknowledgement for an enquiry", () => {
+    const acknowledgement = buildPendingAcknowledgement({ ...lowRiskDecision, requiresApproval: true, riskLevel: "MEDIUM", riskCategories: ["ENQUIRY"] });
+    expect(acknowledgement).toContain("enquiry has been sent to Kelvin for review");
+    expect(acknowledgement).not.toContain("approved");
   });
 });
