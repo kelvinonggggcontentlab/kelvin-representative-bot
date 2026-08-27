@@ -11,3 +11,4 @@
 - [x] Build the authenticated owner console with held-message review, draft edit/approve/reject actions, current overrides, conversation history, and webhook setup status.
 - [x] Add server-side unit tests for webhook verification, risk holding, memory separation, and approval dispatch safeguards.
 - [x] Validate the completed service locally and document the required production credential and Telegram setup steps.
+- [x] Register and verify the Telegram webhook for https://kelvinbot-cxsk7qzu.manus.space/api/telegram/webhook.
