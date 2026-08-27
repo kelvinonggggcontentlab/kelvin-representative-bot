@@ -1,0 +1,5 @@
+{
+  "project_id": "rjgxpvgstspgjnplozhh",
+  "name": "kelvin_representative_production_hardening",
+  "query_file": "supabase/migrations/202608270003_production_hardening.sql"
+}

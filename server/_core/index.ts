@@ -9,7 +9,11 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { processTelegramUpdate } from "../botService";
-import { verifyTelegramWebhookSecret } from "../telegram";
+import { checkTelegramReadiness, verifyTelegramWebhookSecret } from "../telegram";
+import { checkSupabaseReadiness } from "../supabase";
+import { createCorrelationId, logEvent, safeErrorSummary } from "../observability";
+import { getConfigurationStatus, ENV } from "./env";
+import { getUnsupportedUpdateReason, getUpdateMessage, isTelegramChatAllowed, parseTelegramUpdate } from "../telegramValidation";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,21 +37,51 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use((req, res, next) => {
+    const correlationId = createCorrelationId();
+    res.setHeader("X-Request-Id", correlationId);
+    res.locals.correlationId = correlationId;
+    next();
+  });
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  app.get("/healthz", async (_req, res) => {
+    const [database, telegram] = await Promise.all([checkSupabaseReadiness(), checkTelegramReadiness()]);
+    const configuration = getConfigurationStatus();
+    const ready = database && telegram && configuration.webhookSecret && configuration.externalTimeoutValid;
+    return res.status(ready ? 200 : 503).json({ ok: ready, services: { database, telegram }, configuration: { webhookSecret: configuration.webhookSecret, externalTimeoutValid: configuration.externalTimeoutValid } });
+  });
   app.post("/api/telegram/webhook", async (req, res) => {
+    const correlationId = String(res.locals.correlationId);
     if (!verifyTelegramWebhookSecret(req.get("X-Telegram-Bot-Api-Secret-Token"))) {
+      logEvent("warn", "telegram_webhook_rejected", { correlationId, reason: "invalid_secret" });
       return res.status(401).json({ ok: false, error: "Unverified Telegram webhook request." });
     }
 
+    const parsedUpdate = parseTelegramUpdate(req.body);
+    if (!parsedUpdate.success) {
+      logEvent("warn", "telegram_webhook_rejected", { correlationId, reason: "invalid_payload" });
+      return res.status(400).json({ ok: false, error: "Malformed Telegram update." });
+    }
+    const message = getUpdateMessage(parsedUpdate.data);
+    const unsupportedReason = getUnsupportedUpdateReason(parsedUpdate.data);
+    if (unsupportedReason) {
+      logEvent("info", "telegram_webhook_ignored", { correlationId, updateId: parsedUpdate.data.update_id, reason: unsupportedReason });
+      return res.status(200).json({ ok: true, status: "ignored" });
+    }
+    if (message && !isTelegramChatAllowed(message.chat.id)) {
+      logEvent("warn", "telegram_webhook_ignored", { correlationId, updateId: parsedUpdate.data.update_id, reason: "chat_not_allowed" });
+      return res.status(200).json({ ok: true, status: "ignored" });
+    }
+
     try {
-      const result = await processTelegramUpdate(req.body);
+      const result = await processTelegramUpdate(parsedUpdate.data, correlationId);
+      logEvent("info", "telegram_webhook_processed", { correlationId, updateId: parsedUpdate.data.update_id, status: result.status });
       return res.status(200).json({ ok: true, ...result });
     } catch (error) {
-      console.error("[Telegram webhook] Processing failed", error);
+      logEvent("error", "telegram_webhook_failed", { correlationId, updateId: parsedUpdate.data.update_id, ...safeErrorSummary(error) });
       return res.status(500).json({ ok: false, error: "Webhook processing failed." });
     }
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPendingAcknowledgement, getKelvinFastPathReply, shouldHoldReply } from "./botService";
+import { canClaimApproval } from "./ownerOperationsService";
 import type { ReplyDecision } from "./representative";
 
 const lowRiskDecision: ReplyDecision = {
@@ -22,6 +23,22 @@ describe("approval dispatch safeguard", () => {
 
   it("only permits automatic delivery for an explicitly low-risk draft in auto-send mode", () => {
     expect(shouldHoldReply(lowRiskDecision, { auto_send_low_risk: true, bot_enabled: true })).toBe(false);
+  });
+
+  it("permits exactly a non-expired pending approval to enter the sending state", () => {
+    const now = Date.now();
+    expect(canClaimApproval("PENDING", new Date(now + 60_000).toISOString(), now)).toBe(true);
+    expect(canClaimApproval("SEND_FAILED", new Date(now + 60_000).toISOString(), now)).toBe(true);
+    expect(canClaimApproval("SENDING", new Date(now + 60_000).toISOString(), now)).toBe(false);
+    expect(canClaimApproval("SENT", new Date(now + 60_000).toISOString(), now)).toBe(false);
+    expect(canClaimApproval("PENDING", new Date(now - 60_000).toISOString(), now)).toBe(false);
+  });
+
+  it("never permits an expired or terminal decision to be delivered again", () => {
+    const now = Date.now();
+    ["SENDING", "SENT", "REJECTED", "EXPIRED"].forEach(status => {
+      expect(canClaimApproval(status, new Date(now + 60_000).toISOString(), now)).toBe(false);
+    });
   });
 
   it("tells a held task requester that Kelvin will follow up after review", () => {

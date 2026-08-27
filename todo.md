@@ -21,3 +21,17 @@
 - [x] Replace generic support replies and `/start` handling with Kelvin Representative-native conversation behaviour.
 - [x] Rewrite pending-review acknowledgements so they preserve Kelvin’s direct, natural, commercially sharp voice without false commitments.
 - [x] Add voice-regression tests for casual messages, onboarding, and approval holds.
+- [x] Complete the repository-wide production audit required by the KELVIN REPRESENTATIVE engineering specification.
+- [x] Document evidence-based architecture, security, reliability, observability, and test-coverage findings before refactoring.
+- [x] Separate remaining application, approval, notification, queue, and memory repository responsibilities from the orchestration service.
+- [x] Complete stable-identifier Telegram command controls and explicitly reject unsupported callback actions.
+- [x] Enforce memory source, verification, live-state, and expiry invariants in both application validation and Supabase constraints.
+- [x] Add targeted migration validation and regression coverage for duplicate update IDs, approval claim races, failed-send recovery, and command security.
+- [x] Revalidate health, owner operations controls, webhook diagnostics, production build, and deployment runbook after gap closure.
+- [x] Extract the remaining owner-facing queue, lifecycle, and status aggregation from the webhook orchestration layer.
+- [x] Enforce runtime Telegram command behavior and explicitly acknowledge unsupported commands without executing arbitrary text.
+- [x] Add workflow-level duplicate-update and concurrent-approval claim regression tests using controlled repository boundaries.
+- [x] Verify the owner-console authentication boundary and authenticated API path for health, queue recovery, lifecycle, and webhook diagnostics; document the independent browser’s stopped Google sign-in state without weakening access control.
+- [x] Diagnose the blank-screen owner-console authentication return flow as an external Google identity-verification hand-off rather than a bot or console data-exposure failure.
+- [x] Document the repeated Google identity-verification hand-off blockage and provide a non-invasive owner-access recovery path.
+- [x] Complete final server-side health, database-constraint, Telegram-readiness, and regression verification without changing bot decisions.
