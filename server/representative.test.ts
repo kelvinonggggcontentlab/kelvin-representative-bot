@@ -25,6 +25,12 @@ describe("Kelvin Representative deterministic safety gate", () => {
     expect(decision.approvalIntentCategories).toContain("APPROVAL_OR_DECISION");
   });
 
+  it("does not send a simple presence ping into an approval queue", () => {
+    const result = findDeterministicRiskSignals("hey Kelvin, are u there?");
+    expect(result.requiresApproval).toBe(false);
+    expect(result.categories).toEqual([]);
+  });
+
   it("does not force a hold for ordinary low-risk logistics", () => {
     const result = findDeterministicRiskSignals("I will reach in 10 minutes.");
     expect(result.requiresApproval).toBe(false);

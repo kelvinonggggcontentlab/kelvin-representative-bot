@@ -29,12 +29,21 @@ export function shouldHoldReply(decision: ReplyDecision, settings: BotSettings):
 
 export function buildPendingAcknowledgement(decision: ReplyDecision): string {
   if (decision.riskCategories.includes("TASK_REQUEST")) {
-    return "Noted. Your request has been sent to Kelvin for review. Please give us a bit of time — we’ll update you once there’s a decision.";
+    return "ok, I check this first.\n\nGot update I come back to you.";
   }
   if (decision.riskCategories.includes("APPROVAL_OR_DECISION")) {
-    return "Noted. This needs Kelvin’s confirmation first. Please bear with us — we’ll get back to you once there’s an update.";
+    return "this one I need check first.\n\nGot update I tell you.";
   }
-  return "Noted. Your enquiry has been sent to Kelvin for review. Please bear with us — we’ll get back to you once there’s an update.";
+  return "ok, I check first.\n\nGot update I let you know.";
+}
+
+export function getKelvinFastPathReply(text: string): string | null {
+  const normalized = text.trim();
+  if (/^\/start(?:\s|$)/i.test(normalized)) return "ya, what happen?";
+  if (/^(?:hey|hi|hello|oi|yo)(?:\s+kelvin)?[\s,]*?(?:are\s+(?:you|u)\s+there|(?:you|u)\s+there)?[?!]*$/i.test(normalized)) {
+    return "ya, what happen?";
+  }
+  return null;
 }
 
 async function updateWebhookEvent(updateId: number, values: Record<string, unknown>) {
@@ -179,6 +188,24 @@ export async function processTelegramUpdate(update: TelegramUpdate) {
     if (!settings.bot_enabled) {
       await updateWebhookEvent(update.update_id, { processing_status: "PROCESSED", processed_at: new Date().toISOString() });
       return { status: "recorded_bot_disabled" as const };
+    }
+
+    const fastPathReply = getKelvinFastPathReply(message.text);
+    if (fastPathReply) {
+      const outbound = await sendReply({
+        conversationId: conversation.id,
+        chatId: conversation.telegram_chat_id,
+        replyToMessageId: message.message_id,
+        text: fastPathReply,
+        messageKind: "CASUAL_FAST_PATH",
+      });
+      await supabaseRequest(`kr_messages?id=eq.${inboundRows[0].id}`, {
+        method: "PATCH",
+        headers: supabaseHeaders.represent,
+        body: JSON.stringify({ delivery_status: "SENT" }),
+      });
+      await updateWebhookEvent(update.update_id, { processing_status: "PROCESSED", processed_at: new Date().toISOString() });
+      return { status: "sent" as const, outboundMessageId: outbound.id };
     }
 
     const decision = await generateReplyDecision({

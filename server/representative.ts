@@ -43,7 +43,7 @@ const highRiskRules = [
 const uncertainTerms = ["where are you", "when are you coming", "are you free", "can you promise", "you said", "what do you feel", "你在哪里", "你几点来", "你有空吗", "你答应", "你怎么想"];
 
 const approvalIntentRules = [
-  { category: "ENQUIRY", terms: ["?", "？", "how much", "price", "quotation", "quote", "can you", "could you", "may i", "boleh", "berapa", "多少钱", "可以吗", "请问", "什么", "怎么", "几时", "哪里"] },
+  { category: "ENQUIRY", terms: ["how much", "price", "quotation", "quote", "can you", "could you", "may i", "boleh", "berapa", "多少钱", "可以吗", "请问", "什么", "怎么", "几时", "哪里"] },
   { category: "TASK_REQUEST", terms: ["please send", "please arrange", "please book", "please help", "can you send", "can you arrange", "can you book", "帮我", "安排", "处理", "发给我", "订"] },
   { category: "APPROVAL_OR_DECISION", terms: ["approve", "approval", "decide", "decision", "confirm", "confirming", "agree", "accept", "批准", "决定", "确认", "同意"] },
 ];
@@ -122,11 +122,17 @@ export async function generateReplyDecision(input: {
   const deterministic = findDeterministicRiskSignals(input.incomingText);
   const context = await loadContext(input.conversationId);
 
-  const systemPrompt = `You draft concise Telegram replies in Kelvin's communication baseline. Use concise Malaysian-Chinese / English-mixed wording when natural; do not force slang or intimacy. Kelvin is direct, practical, concise, and context-sensitive. Stabilize ordinary distress first, then make the immediate next step clear. Use a formal, procedural tone only for verified operational matters.
+  const systemPrompt = `You are KELVIN REPRESENTATIVE. Your job is to render Kelvin's natural Telegram rhythm, not generic customer support and not a corporate brand assistant.
+
+VOICE: Malaysian Chinese / Johor chat texture. Direct, concise, practical, conversational. Default to one short message, usually 1–12 words. Natural code-switching is welcome: "ya", "ok can", "what happen?", "you reach already tell me", "I check first", "got update I tell you", "好了跟我说". Use local particles only when they fit naturally: 咯, 啦, 嘛, 咧, 咩, 啊, 吧. Do not force slang, typo, affection, a professional title, or BLACKTOWER language.
+
+STRICTLY AVOID: "Noted", "your enquiry", "please bear with us", "we will get back to you", "sent to Kelvin for review", customer-service language, therapy-script wording, long polished paragraphs, and explanations of the bot's process. If someone says hello, /start, "hey Kelvin", or "are u there", a natural reply is simply "ya, what happen?". Do not turn a simple greeting or ordinary small talk into a review item.
+
+MODE: Casual daily messages get short natural answers. Ordinary distress gets a short stabilizing line, then one practical next step. Unclear, evasive, or boundary-pushing messages get one direct clarification question. Formal operational language is only for verified operational matters. Treat historical affection as history, not permission to invent current intimacy.
 
 Critical fidelity policy: behavioural style is not current knowledge or authority. Archive-derived context is historical and must never be written as current fact. Only LIVE VERIFIED STATE may support a current claim. When live state is absent, return UNKNOWN and ask the smallest useful clarification. Never invent Kelvin's feelings, whereabouts, plans, relationship status, BlackTower status, commitments, promises, or authorization.
 
-For legal, financial, medical, security/access, confidential, disciplinary, relationship commitment, or other irreversible matters, write only a neutral acknowledgement or factual clarification that does not make a decision. Those must require approval. Do not use 'As an AI' or corporate customer-service language.
+For legal, financial, medical, security/access, confidential, disciplinary, relationship commitment, or other irreversible matters, write only a short neutral placeholder that does not make a decision. For any hold, draftText is an internal proposed final reply for Kelvin to approve; it is not the waiting message sent to the user. Low-risk greetings, simple acknowledgements, and ordinary logistics should be LOW risk unless they actually request a decision, task, quote, transfer, or commitment.
 
 Return only the requested JSON object.`;
 
@@ -189,7 +195,7 @@ ${context.overrides.length ? context.overrides.map(override => `- ${override.ins
     const categories = Array.from(new Set([...deterministic.categories, ...modelCategories, ...(deterministic.uncertainty ? ["UNKNOWN_CURRENT_STATE"] : [])]));
 
     return {
-      draftText: cleanText(parsed.draftText, "Noted. I need to check the actual situation first."),
+      draftText: cleanText(parsed.draftText, "I check first. Got update I tell you."),
       mode: forceHold ? "HIGH_RISK" : validMode(parsed.mode),
       riskLevel: deterministic.highRiskCategories.length > 0 ? "HIGH" : (deterministic.uncertainty ? "UNKNOWN" : (deterministic.approvalIntentCategories.length > 0 ? "MEDIUM" : modelRisk)),
       riskCategories: categories,
@@ -204,7 +210,7 @@ ${context.overrides.length ? context.overrides.map(override => `- ${override.ins
     };
   } catch (error) {
     return {
-      draftText: "Noted. I need to check the actual situation first.",
+      draftText: "I check first. Got update I tell you.",
       mode: "HIGH_RISK",
       riskLevel: "UNKNOWN",
       riskCategories: ["DRAFT_GENERATION_FALLBACK"],
